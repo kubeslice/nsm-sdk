@@ -1,4 +1,4 @@
-// Copyright (c) 2021 Cisco and/or its affiliates.
+// Copyright (c) 2021-2023 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -34,12 +34,5 @@ type Option func(*option)
 func WithDialOptions(dialOptions ...grpc.DialOption) Option {
 	return func(o *option) {
 		o.dialOptions = dialOptions
-	}
-}
-
-// WithDialTimeout - dialTimeout for use by dial chain element.
-func WithDialTimeout(dialTimeout time.Duration) Option {
-	return func(o *option) {
-		o.dialTimeout = dialTimeout
 	}
 }

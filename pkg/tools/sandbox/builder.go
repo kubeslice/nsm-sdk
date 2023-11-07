@@ -1,5 +1,7 @@
 // Copyright (c) 2020-2022 Doc.ai and/or its affiliates.
 //
+// Copyright (c) 2023 Cisco and/or its affiliates.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -304,6 +306,7 @@ func (b *Builder) newNSMgrProxy() *NSMgrEntry {
 			b.generateTokenFunc,
 			nsmgrproxy.WithListenOn(entry.URL),
 			nsmgrproxy.WithName(entry.Name),
+			nsmgrproxy.WithDialTimeout(DialTimeout),
 			nsmgrproxy.WithDialOptions(dialOptions...),
 		)
 		serve(ctx, b.t, entry.URL, entry.Register)

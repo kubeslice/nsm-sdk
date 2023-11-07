@@ -1,5 +1,7 @@
 // Copyright (c) 2020-2022 Doc.ai and/or its affiliates.
 //
+// Copyright (c) 2023 Cisco and/or its affiliates.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -87,7 +89,7 @@ func TestInterdomainNetworkServiceEndpointRegistry(t *testing.T) {
 	)
 	require.Nil(t, err)
 
-	cc, err := grpc.DialContext(ctx, grpcutils.URLToTarget(domain1.Registry.URL), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	cc, err := grpc.DialContext(ctx, grpcutils.URLToTarget(domain1.Registry.URL), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.Nil(t, err)
 
 	defer func() {
@@ -156,7 +158,7 @@ func TestLocalDomain_NetworkServiceEndpointRegistry(t *testing.T) {
 	)
 	require.Nil(t, err)
 
-	cc, err := grpc.DialContext(ctx, grpcutils.URLToTarget(domain1.Registry.URL), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	cc, err := grpc.DialContext(ctx, grpcutils.URLToTarget(domain1.Registry.URL), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.Nil(t, err)
 	defer func() {
 		_ = cc.Close()
@@ -239,7 +241,7 @@ func TestInterdomainFloatingNetworkServiceEndpointRegistry(t *testing.T) {
 
 	name := strings.Split(reg.Name, "@")[0]
 
-	cc, err := grpc.DialContext(ctx, grpcutils.URLToTarget(domain1.Registry.URL), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	cc, err := grpc.DialContext(ctx, grpcutils.URLToTarget(domain1.Registry.URL), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.Nil(t, err)
 	defer func() {
 		_ = cc.Close()

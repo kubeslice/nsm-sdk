@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022 Cisco and/or its affiliates.
+// Copyright (c) 2021-2023 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -61,14 +61,13 @@ func NewClient(ctx context.Context, clientOpts ...Option) networkservice.Network
 				opts.healClient,
 				dial.NewClient(ctx,
 					dial.WithDialOptions(opts.dialOptions...),
-					dial.WithDialTimeout(opts.dialTimeout),
 				),
 			},
 			append(
 				opts.additionalFunctionality,
 				opts.authorizeClient,
 				trimpath.NewClient(),
-				connect.NewClient(),
+				connect.NewClient(connect.WithDialTimeout(opts.dialTimeout)),
 			)...,
 		)...,
 	)

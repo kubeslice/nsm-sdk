@@ -1,5 +1,7 @@
 // Copyright (c) 2020-2022 Doc.ai and/or its affiliates.
 //
+// Copyright (c) 2023 Cisco and/or its affiliates.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -68,10 +70,9 @@ func TestConnectServer_Request(t *testing.T) {
 			next.NewNetworkServiceClient(
 				adapters.NewServerToClient(serverClient),
 				dial.NewClient(context.Background(),
-					dial.WithDialTimeout(time.Second),
 					dial.WithDialOptions(grpc.WithTransportCredentials(insecure.NewCredentials())),
 				),
-				connect.NewClient(),
+				connect.NewClient(connect.WithDialTimeout(time.Second)),
 			),
 		),
 		serverNext,
@@ -197,11 +198,10 @@ func TestConnectServer_RequestParallel(t *testing.T) {
 		connect.NewServer(
 			next.NewNetworkServiceClient(
 				dial.NewClient(context.Background(),
-					dial.WithDialTimeout(time.Second),
 					dial.WithDialOptions(grpc.WithTransportCredentials(insecure.NewCredentials())),
 				),
 				serverClient,
-				connect.NewClient(),
+				connect.NewClient(connect.WithDialTimeout(time.Second)),
 			),
 		),
 		serverNext,
@@ -297,11 +297,10 @@ func TestConnectServer_RequestFail(t *testing.T) {
 		connect.NewServer(
 			next.NewNetworkServiceClient(
 				dial.NewClient(context.Background(),
-					dial.WithDialTimeout(time.Second),
 					dial.WithDialOptions(grpc.WithTransportCredentials(insecure.NewCredentials())),
 				),
 				injecterror.NewClient(),
-				connect.NewClient(),
+				connect.NewClient(connect.WithDialTimeout(time.Second)),
 			),
 		),
 	)
@@ -347,11 +346,10 @@ func TestConnectServer_RequestNextServerError(t *testing.T) {
 		connect.NewServer(
 			next.NewNetworkServiceClient(
 				dial.NewClient(context.Background(),
-					dial.WithDialTimeout(time.Second),
 					dial.WithDialOptions(grpc.WithTransportCredentials(insecure.NewCredentials())),
 				),
 				adapters.NewServerToClient(serverClient),
-				connect.NewClient(),
+				connect.NewClient(connect.WithDialTimeout(time.Second)),
 			),
 		),
 		injecterror.NewServer(),
@@ -414,10 +412,9 @@ func TestConnectServer_RemoteRestarted(t *testing.T) {
 		connect.NewServer(
 			next.NewNetworkServiceClient(
 				dial.NewClient(context.Background(),
-					dial.WithDialTimeout(time.Second),
 					dial.WithDialOptions(grpc.WithTransportCredentials(insecure.NewCredentials())),
 				),
-				connect.NewClient(),
+				connect.NewClient(connect.WithDialTimeout(time.Second)),
 			),
 		),
 	)
@@ -501,10 +498,9 @@ func TestConnectServer_DialTimeout(t *testing.T) {
 		connect.NewServer(
 			next.NewNetworkServiceClient(
 				dial.NewClient(context.Background(),
-					dial.WithDialTimeout(100*time.Millisecond),
-					dial.WithDialOptions(grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock()),
+					dial.WithDialOptions(grpc.WithTransportCredentials(insecure.NewCredentials())),
 				),
-				connect.NewClient(),
+				connect.NewClient(connect.WithDialTimeout(100*time.Millisecond)),
 			),
 		),
 	)
@@ -548,10 +544,9 @@ func TestConnectServer_ChangeURLWithExpiredContext(t *testing.T) {
 		connect.NewServer(
 			next.NewNetworkServiceClient(
 				dial.NewClient(context.Background(),
-					dial.WithDialTimeout(time.Hour),
 					dial.WithDialOptions(grpc.WithTransportCredentials(insecure.NewCredentials())),
 				),
-				connect.NewClient(),
+				connect.NewClient(connect.WithDialTimeout(time.Second)),
 			),
 		),
 	)

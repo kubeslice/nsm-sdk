@@ -128,6 +128,7 @@ func (m *MonitorPassThroughSuite) StartPassThroughEndpoints(connectTo *url.URL) 
 						client.WithName(name),
 						client.WithoutRefresh(),
 						client.WithAuthorizeClient(null.NewClient()),
+						client.WithDialTimeout(sandbox.DialTimeout),
 						client.WithDialOptions(
 							sandbox.DialOptions()...,
 						),
@@ -168,6 +169,7 @@ func (m *MonitorPassThroughSuite) StartClient(connectTo *url.URL) {
 		m.testCtx,
 		client.WithClientURL(connectTo),
 		client.WithAuthorizeClient(null.NewClient()),
+		client.WithDialTimeout(sandbox.DialTimeout),
 		client.WithDialOptions(
 			sandbox.DialOptions()...,
 		),
