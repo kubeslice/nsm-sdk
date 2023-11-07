@@ -1,5 +1,7 @@
 // Copyright (c) 2020-2021 Doc.ai and/or its affiliates.
 //
+// Copyright (c) 2023 Doc.ai and/or its affiliates.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -183,16 +185,16 @@ type afterErrorClient struct {
 func (c *afterErrorClient) Request(ctx context.Context, request *networkservice.NetworkServiceRequest, opts ...grpc.CallOption) (*networkservice.Connection, error) {
 	c.success = !c.success
 
-	conn, err := next.Client(ctx).Request(ctx, request)
+	conn, err := next.Client(ctx).Request(ctx, request, opts...)
 	if err != nil || c.success {
 		return conn, err
 	}
 
-	_, _ = next.Client(ctx).Close(ctx, conn)
+	_, _ = next.Client(ctx).Close(ctx, conn, opts...)
 
 	return nil, errors.New("error")
 }
 
 func (c *afterErrorClient) Close(ctx context.Context, conn *networkservice.Connection, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	return next.Client(ctx).Close(ctx, conn)
+	return next.Client(ctx).Close(ctx, conn, opts...)
 }
