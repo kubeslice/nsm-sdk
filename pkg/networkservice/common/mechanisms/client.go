@@ -1,5 +1,7 @@
 // Copyright (c) 2021 Doc.ai and/or its affiliates.
 //
+// Copyright (c) 2023 Cisco and/or its affiliates.
+//
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -70,7 +72,7 @@ func (mc *mechanismsClient) Request(ctx context.Context, request *networkservice
 func (mc *mechanismsClient) Close(ctx context.Context, conn *networkservice.Connection, opts ...grpc.CallOption) (*empty.Empty, error) {
 	c, ok := mc.mechanisms[conn.GetMechanism().GetType()]
 	if ok {
-		return c.Close(ctx, conn)
+		return c.Close(ctx, conn, opts...)
 	}
 	return nil, errCannotSupportMech
 }
