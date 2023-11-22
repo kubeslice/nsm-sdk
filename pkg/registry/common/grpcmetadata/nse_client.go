@@ -1,4 +1,4 @@
-// Copyright (c) 2022 Cisco and/or its affiliates.
+// Copyright (c) 2022-2023 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
@@ -62,7 +63,31 @@ func (c *grpcMetadataNSEClient) Register(ctx context.Context, nse *registry.Netw
 }
 
 func (c *grpcMetadataNSEClient) Find(ctx context.Context, query *registry.NetworkServiceEndpointQuery, opts ...grpc.CallOption) (registry.NetworkServiceEndpointRegistry_FindClient, error) {
-	return next.NetworkServiceEndpointRegistryClient(ctx).Find(ctx, query, opts...)
+	path := PathFromContext(ctx)
+	ctx, err := appendToMetadata(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+
+	var header metadata.MD
+	opts = append(opts, grpc.Header(&header))
+	resp, err := next.NetworkServiceEndpointRegistryClient(ctx).Find(ctx, query, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	header, err = resp.Header()
+	if err != nil {
+		return nil, errors.Wrap(err, "couldn't get registry path from find server")
+	}
+
+	newpath, err := fromMD(header)
+	if err == nil {
+		path.Index = newpath.Index
+		path.PathSegments = newpath.PathSegments
+	}
+
+	return resp, nil
 }
 
 func (c *grpcMetadataNSEClient) Unregister(ctx context.Context, nse *registry.NetworkServiceEndpoint, opts ...grpc.CallOption) (*empty.Empty, error) {

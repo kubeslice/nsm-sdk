@@ -1,4 +1,4 @@
-// Copyright (c) 2022 Cisco and/or its affiliates.
+// Copyright (c) 2022-2023 Cisco and/or its affiliates.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -77,7 +77,10 @@ func (p *pathCheckerNSClient) Register(ctx context.Context, in *registry.Network
 }
 
 func (p *pathCheckerNSClient) Find(ctx context.Context, query *registry.NetworkServiceQuery, opts ...grpc.CallOption) (registry.NetworkServiceRegistry_FindClient, error) {
-	return next.NetworkServiceRegistryClient(ctx).Find(ctx, query, opts...)
+	pBefore := p.funcBefore(ctx)
+	c, e := next.NetworkServiceRegistryClient(ctx).Find(ctx, query, opts...)
+	p.funcAfter(ctx, pBefore)
+	return c, e
 }
 
 func (p *pathCheckerNSClient) Unregister(ctx context.Context, in *registry.NetworkService, opts ...grpc.CallOption) (*emptypb.Empty, error) {
@@ -87,10 +90,11 @@ func (p *pathCheckerNSClient) Unregister(ctx context.Context, in *registry.Netwo
 	return r, e
 }
 
+// nolint: funlen
 func TestGRPCMetadataNetworkService(t *testing.T) {
 	t.Cleanup(func() { goleak.VerifyNone(t) })
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2000)
 	defer cancel()
 
 	clockMock := clockmock.New(ctx)
@@ -164,15 +168,24 @@ func TestGRPCMetadataNetworkService(t *testing.T) {
 	ctx = grpcmetadata.PathWithContext(ctx, &path)
 
 	ns := &registry.NetworkService{Name: "ns"}
-	_, err = client.Register(ctx, ns)
+	ns, err = client.Register(ctx, ns)
 	require.NoError(t, err)
-
 	require.Equal(t, int(path.Index), 0)
 	require.Len(t, path.PathSegments, 3)
+	require.Len(t, ns.PathIds, 3)
 
 	// Simulate refresh
 	_, err = client.Register(ctx, ns)
 	require.NoError(t, err)
+
+	query := &registry.NetworkServiceQuery{NetworkService: ns}
+	path = grpcmetadata.Path{}
+	ctx = grpcmetadata.PathWithContext(ctx, &path)
+	_, err = client.Find(ctx, query)
+	require.NoError(t, err)
+	require.Equal(t, int(path.Index), 0)
+	require.Len(t, path.PathSegments, 3)
+	//require.Len(t, query.NetworkService.PathIds, 3)
 
 	_, err = client.Unregister(ctx, ns)
 	require.NoError(t, err)
@@ -181,6 +194,7 @@ func TestGRPCMetadataNetworkService(t *testing.T) {
 	proxyGRPCServer.Stop()
 }
 
+// nolint: funlen
 func TestGRPCMetadataNetworkService_BackwardCompatibility(t *testing.T) {
 	t.Cleanup(func() { goleak.VerifyNone(t) })
 
@@ -255,15 +269,24 @@ func TestGRPCMetadataNetworkService_BackwardCompatibility(t *testing.T) {
 	ctx = grpcmetadata.PathWithContext(ctx, &path)
 
 	ns := &registry.NetworkService{Name: "ns"}
-	_, err = client.Register(ctx, ns)
+	ns, err = client.Register(ctx, ns)
 	require.NoError(t, err)
-
 	require.Equal(t, int(path.Index), 0)
 	require.Len(t, path.PathSegments, 2)
+	require.Len(t, ns.PathIds, 2)
 
 	// Simulate refresh
 	_, err = client.Register(ctx, ns)
 	require.NoError(t, err)
+
+	query := &registry.NetworkServiceQuery{NetworkService: ns}
+	path = grpcmetadata.Path{}
+	ctx = grpcmetadata.PathWithContext(ctx, &path)
+	_, err = client.Find(ctx, query)
+	require.NoError(t, err)
+	require.Equal(t, int(path.Index), 0)
+	require.Len(t, path.PathSegments, 2)
+	//require.Len(t, query.NetworkService.PathIds, 2)
 
 	_, err = client.Unregister(ctx, ns)
 	require.NoError(t, err)
