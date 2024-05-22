@@ -326,8 +326,8 @@ func NewServer(ctx context.Context, tokenGenerator token.GeneratorFunc, options 
 					client.WithDialTimeout(opts.dialTimeout),
 					client.WithoutRefresh(),
 				),
-			),
-			sendfd.NewServer()),
+			)),
+		//sendfd.NewServer()),
 	)
 
 	rv.Registry = registry.NewServer(
