@@ -29,6 +29,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/networkservicemesh/api/pkg/api/networkservice"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/peer"
 
 	"github.com/edwarnicke/grpcfd"
 
@@ -56,6 +57,14 @@ func (r *recvFDClient) Request(ctx context.Context, request *networkservice.Netw
 	conn, err := next.Client(ctx).Request(ctx, request, opts...)
 	if err != nil {
 		return nil, err
+	}
+
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return conn, nil
+	}
+	if p.Addr.Network() != "unix" {
+		return conn, nil
 	}
 
 	// Get the fileMap

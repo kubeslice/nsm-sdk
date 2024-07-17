@@ -28,6 +28,7 @@ import (
 	"github.com/networkservicemesh/api/pkg/api/networkservice"
 
 	"github.com/edwarnicke/grpcfd"
+	"google.golang.org/grpc/peer"
 
 	"github.com/networkservicemesh/sdk/pkg/networkservice/core/next"
 )
@@ -55,11 +56,16 @@ func (r *recvFDServer) Request(ctx context.Context, request *networkservice.Netw
 		inodeURLbyFilename: make(map[string]*url.URL),
 	})
 
-	// For each mechanism recv the FD and Swap the Inode for a file in InodeURL in Parameters
-	for _, mechanism := range append(request.GetMechanismPreferences(), request.GetConnection().GetMechanism()) {
-		err := recvFDAndSwapInodeToFile(ctx, fileMap, mechanism.GetParameters(), recv)
-		if err != nil {
-			return nil, err
+	p, ok := peer.FromContext(ctx)
+	if ok {
+		if p.Addr.Network() != "unix" {
+			// For each mechanism recv the FD and Swap the Inode for a file in InodeURL in Parameters
+			for _, mechanism := range append(request.GetMechanismPreferences(), request.GetConnection().GetMechanism()) {
+				err := recvFDAndSwapInodeToFile(ctx, fileMap, mechanism.GetParameters(), recv)
+				if err != nil {
+					return nil, err
+				}
+			}
 		}
 	}
 
