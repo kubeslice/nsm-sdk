@@ -57,7 +57,7 @@ func NewClient(options ...DNSOption) networkservice.NetworkServiceClient {
 		o.apply(c)
 	}
 
-	c.storedResolvConfigPath = c.resolveConfigPath + ".restore"
+	c.storedResolvConfigPath = "/etc/nsm-dns-config/resolv.conf.restore"
 	c.initialize()
 
 	return c

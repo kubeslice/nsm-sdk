@@ -80,7 +80,8 @@ func (t *refreshClient) Request(ctx context.Context, request *networkservice.Net
 				return
 			case <-afterTicker.C():
 				if err := <-eventFactory.Request(begin.CancelContext(cancelCtx)); err != nil {
-					logger.Warnf("refresh failed: %s", err.Error())
+					logger.Warnf("refresh failed: %s.. will retry", err.Error())
+					afterTicker.Reset(10 * time.Second)
 					continue
 				}
 				return

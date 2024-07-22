@@ -1,0 +1,201 @@
+diff --git a/pkg/networkservice/connectioncontext/dnscontext/client.go b/pkg/networkservice/connectioncontext/dnscontext/client.go
+index 92b4b81..eee42d6 100644
+--- a/pkg/networkservice/connectioncontext/dnscontext/client.go
++++ b/pkg/networkservice/connectioncontext/dnscontext/client.go
+@@ -57,7 +57,7 @@ func NewClient(options ...DNSOption) networkservice.NetworkServiceClient {
+ 		o.apply(c)
+ 	}
+ 
+-	c.storedResolvConfigPath = "/etc/nsm-dns-config/resolv.conf.restore"
++	c.storedResolvConfigPath = c.resolveConfigPath + ".restore"
+ 	c.initialize()
+ 
+ 	return c
+diff --git a/pkg/tools/dnsutils/cache/handler.go b/pkg/tools/dnsutils/cache/handler.go
+index 4b330fb..da1032b 100644
+--- a/pkg/tools/dnsutils/cache/handler.go
++++ b/pkg/tools/dnsutils/cache/handler.go
+@@ -42,7 +42,6 @@ func (h *dnsCacheHandler) ServeDNS(ctx context.Context, rw dns.ResponseWriter, m
+ 		v := val.Copy()
+ 		if validateMsg(v) {
+ 			v.Id = m.Id
+-			log.FromContext(ctx).WithField("dnsCacheHandler", "ServeDNS").Debugf("returning from cache: %v, ans: %v", v, v.Answer)
+ 			if err := rw.WriteMsg(v); err != nil {
+ 				log.FromContext(ctx).WithField("dnsCacheHandler", "ServeDNS").Warnf("got an error during write the message: %v", err.Error())
+ 				dns.HandleFailed(rw, v)
+diff --git a/pkg/tools/dnsutils/cache/response_writer_wrapper.go b/pkg/tools/dnsutils/cache/response_writer_wrapper.go
+index e32f4d3..d731e4b 100644
+--- a/pkg/tools/dnsutils/cache/response_writer_wrapper.go
++++ b/pkg/tools/dnsutils/cache/response_writer_wrapper.go
+@@ -26,7 +26,7 @@ type responseWriterWrapper struct {
+ }
+ 
+ func (r *responseWriterWrapper) WriteMsg(m *dns.Msg) error {
+-	if m != nil && m.Rcode == dns.RcodeSuccess && len(m.Answer) > 0 {
++	if m != nil && m.Rcode == dns.RcodeSuccess {
+ 		r.cache.Store(m.Question[0], m)
+ 	}
+ 	return r.ResponseWriter.WriteMsg(m)
+diff --git a/pkg/tools/dnsutils/dnsutils.go b/pkg/tools/dnsutils/dnsutils.go
+index 8f663f5..ca1d3a3 100644
+--- a/pkg/tools/dnsutils/dnsutils.go
++++ b/pkg/tools/dnsutils/dnsutils.go
+@@ -37,7 +37,7 @@ func ListenAndServe(ctx context.Context, handler Handler, listenOn string) {
+ 
+ 	for _, network := range networks {
+ 		var server = &dns.Server{Addr: listenOn, Net: network, Handler: dns.HandlerFunc(func(w dns.ResponseWriter, m *dns.Msg) {
+-			var timeoutCtx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
++			var timeoutCtx, cancel = context.WithTimeout(context.Background(), time.Second)
+ 			defer cancel()
+ 
+ 			handler.ServeDNS(timeoutCtx, w, m)
+diff --git a/pkg/tools/dnsutils/fanout/handler.go b/pkg/tools/dnsutils/fanout/handler.go
+index 8bc3aa3..4a01be8 100644
+--- a/pkg/tools/dnsutils/fanout/handler.go
++++ b/pkg/tools/dnsutils/fanout/handler.go
+@@ -28,7 +28,6 @@ import (
+ 	"github.com/networkservicemesh/sdk/pkg/tools/clienturlctx"
+ 	"github.com/networkservicemesh/sdk/pkg/tools/dnsutils"
+ 	"github.com/networkservicemesh/sdk/pkg/tools/dnsutils/next"
+-	"github.com/networkservicemesh/sdk/pkg/tools/dnsutils/searches"
+ 	"github.com/networkservicemesh/sdk/pkg/tools/log"
+ )
+ 
+@@ -38,9 +37,7 @@ type fanoutHandler struct {
+ 
+ func (h *fanoutHandler) ServeDNS(ctx context.Context, rw dns.ResponseWriter, msg *dns.Msg) {
+ 	var connectTO = clienturlctx.ClientURLs(ctx)
+-	var searchDomains = searches.SearchDomains(ctx)
+ 	var responseCh = make(chan *dns.Msg, len(connectTO))
+-	var primaryDnsServerUrl *url.URL = nil
+ 
+ 	deadline, _ := ctx.Deadline()
+ 	timeout := time.Until(deadline)
+@@ -51,49 +48,6 @@ func (h *fanoutHandler) ServeDNS(ctx context.Context, rw dns.ResponseWriter, msg
+ 		return
+ 	}
+ 
+-	for iter, searchDomain := range searchDomains {
+-		if searchDomain == "slice.local" {
+-			if iter < len(connectTO) {
+-				primaryDnsServerUrl = &connectTO[iter]
+-			}
+-			break
+-		}
+-	}
+-
+-	log.FromContext(ctx).WithField("fanoutHandler", "ServeDNS").Debugf("Primary dns: %v", primaryDnsServerUrl)
+-
+-	if primaryDnsServerUrl != nil {
+-		var client = dns.Client{
+-			Net:     primaryDnsServerUrl.Scheme,
+-			Timeout: timeout,
+-		}
+-
+-		address := primaryDnsServerUrl.Host
+-		if primaryDnsServerUrl.Port() == "" {
+-			address += fmt.Sprintf(":%d", h.dnsPort)
+-		}
+-
+-		var resp, _, err = client.Exchange(msg, address)
+-		if err != nil {
+-			log.FromContext(ctx).WithField("fanoutHandler", "ServeDNS").Warnf("got an error during exchanging with primary %v: %v", address, err.Error())
+-		} else {
+-			if resp != nil {
+-				log.FromContext(ctx).WithField("fanoutHandler", "ServeDNS").Debugf("recvd resp from primary: %v", resp)
+-				if resp.Rcode == dns.RcodeSuccess {
+-					if len(resp.Answer) > 0 {
+-						if err := rw.WriteMsg(resp); err != nil {
+-							log.FromContext(ctx).WithField("fanoutHandler", "ServeDNS").Warnf("got an error during write the message: %v", err.Error())
+-							dns.HandleFailed(rw, msg)
+-							return
+-						}
+-						next.Handler(ctx).ServeDNS(ctx, rw, resp)
+-						return
+-					}
+-				}
+-			}
+-		}
+-	}
+-
+ 	for i := 0; i < len(connectTO); i++ {
+ 		go func(u *url.URL, msg *dns.Msg) {
+ 			var client = dns.Client{
+@@ -120,9 +74,6 @@ func (h *fanoutHandler) ServeDNS(ctx context.Context, rw dns.ResponseWriter, msg
+ 	var resp = h.waitResponse(ctx, responseCh)
+ 
+ 	if resp == nil {
+-		// TODO: The waitResponse() func needs to be improved to return the correct error code if none of the
+-		// queried nameservers return an answer. We need a way to aggregate the error codes and choose what error
+-		// to write in the dns response message if different nameservers returned different error codes.
+ 		dns.HandleFailed(rw, msg)
+ 		return
+ 	}
+@@ -152,12 +103,6 @@ func (h *fanoutHandler) waitResponse(ctx context.Context, respCh <-chan *dns.Msg
+ 				continue
+ 			}
+ 			if resp.Rcode == dns.RcodeSuccess {
+-				if len(resp.Answer) == 0 {
+-					if respCount == 0 {
+-						return resp
+-					}
+-					continue
+-				}
+ 				return resp
+ 			}
+ 			if respCount == 0 {
+diff --git a/pkg/tools/dnsutils/searches/handler.go b/pkg/tools/dnsutils/searches/handler.go
+index 3cbd28f..2ae7dcd 100644
+--- a/pkg/tools/dnsutils/searches/handler.go
++++ b/pkg/tools/dnsutils/searches/handler.go
+@@ -29,7 +29,7 @@ import (
+ )
+ 
+ const (
+-	timeout = 3 * time.Second
++	timeout = 5 * time.Second
+ )
+ 
+ type searchDomainsHandler struct {
+@@ -47,33 +47,21 @@ func (h *searchDomainsHandler) ServeDNS(ctx context.Context, rw dns.ResponseWrit
+ 	ctx, cancel := context.WithTimeout(ctx, timeout)
+ 	defer cancel()
+ 
+-	for i, d := range append([]string{""}, SearchDomains(ctx)...) {
++	next.Handler(ctx).ServeDNS(ctx, r, m)
++
++	for _, d := range SearchDomains(ctx) {
+ 		newMsg := m.Copy()
+ 		newMsg.Question[0].Name = dns.Fqdn(newMsg.Question[0].Name + d)
+ 		next.Handler(ctx).ServeDNS(ctx, r, newMsg)
+-
+-		// If the response contains an answer section, return right away.
+-		if r.Responses[i] != nil && r.Responses[i].Rcode == dns.RcodeSuccess && len(r.Responses[i].Answer) > 0 {
+-			log.FromContext(ctx).WithField("searchDomainsHandler", "ServeDNS").Debugf("Returning response with ans section: %v", r.Responses[i])
+-			r.Responses[i].Question = m.Question
+-			if err := rw.WriteMsg(r.Responses[i]); err != nil {
+-				log.FromContext(ctx).WithField("searchDomainsHandler", "ServeDNS").Warnf("got an error during write the message: %v", err.Error())
+-				dns.HandleFailed(rw, r.Responses[i])
+-				return
+-			}
+-			return
+-		}
+ 	}
+ 
+-	// If we are here, we have received responses without an answer section. Return the first response with an Rcode of success.
+-	// If there are no responses with RcodeSuccess, we fallthrough and return a failure message to the caller.
+-	for i, resp := range r.Responses {
++	for _, resp := range r.Responses {
+ 		if resp != nil && resp.Rcode == dns.RcodeSuccess {
+-			log.FromContext(ctx).WithField("searchDomainsHandler", "ServeDNS").Debugf("Returning response without ans: %v", r.Responses[i])
+-			r.Responses[i].Question = m.Question
+-			if err := rw.WriteMsg(r.Responses[i]); err != nil {
++			resp.Question = m.Question
++			if err := rw.WriteMsg(resp); err != nil {
+ 				log.FromContext(ctx).WithField("searchDomainsHandler", "ServeDNS").Warnf("got an error during write the message: %v", err.Error())
+-				dns.HandleFailed(rw, r.Responses[i])
++				dns.HandleFailed(rw, resp)
++				return
+ 			}
+ 			return
+ 		}
