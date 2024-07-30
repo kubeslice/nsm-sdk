@@ -23,6 +23,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/networkservicemesh/api/pkg/api/ipam"
 	"github.com/networkservicemesh/api/pkg/api/networkservice"
+	"github.com/networkservicemesh/sdk/pkg/tools/log"
 
 	"github.com/networkservicemesh/sdk/pkg/networkservice/core/next"
 )
@@ -70,8 +71,27 @@ func (v *vl3Server) Request(ctx context.Context, request *networkservice.Network
 
 	shouldAllocate := len(ipContext.SrcIpAddrs) == 0
 
-	if prevAddress, ok := loadAddress(ctx); ok && !shouldAllocate {
-		shouldAllocate = !v.pool.isExcluded(prevAddress)
+	if !shouldAllocate {
+		prevAddress, ok := loadAddress(ctx)
+		if ok {
+			// TODO: What if the prevAddress is not present in the src address list in the ipContext?
+			// Need to handle that scenario too.
+			shouldAllocate = !v.pool.isExcluded(prevAddress)
+		} else {
+			log.FromContext(ctx).Debugf("Prev addr not loaded, need to allocate")
+			// Loop through the list of src IP addresses and try to allocate all the IPs.
+			// If any allocation fails, free the allocated IPs and do a fresh allocation by setting
+			// the shouldAllocate flag to true.
+			for _, srcAddr := range ipContext.SrcIpAddrs {
+				_, err := v.pool.allocateIPString(srcAddr)
+				if err != nil {
+					log.FromContext(ctx).Errorf("Failed to allocate prev IP: %s. Need to allocate new IPs", srcAddr)
+					shouldAllocate = true
+					break
+				}
+				storeAddress(ctx, srcAddr)
+			}
+		}
 	}
 
 	if shouldAllocate {

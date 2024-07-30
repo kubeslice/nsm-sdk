@@ -18,6 +18,7 @@ package vl3
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync"
 
@@ -89,6 +90,28 @@ func (p *vl3IPAM) allocate() (*net.IPNet, error) {
 
 	p.excludedPrefixes[r.String()] = struct{}{}
 	return r, nil
+}
+
+func (p *vl3IPAM) allocateIPString(ipNet string) (*net.IPNet, error) {
+	if p.isExcluded(ipNet) {
+		return nil, errors.New("IP cannot be allocated")
+	}
+	p.Lock()
+	defer p.Unlock()
+
+	ip, err := p.ipPool.PullIPString(ipNet)
+	if err != nil {
+		return nil, err
+	}
+
+	p.excludedPrefixes[ip.String()] = struct{}{}
+	return ip, nil
+}
+
+func (p *vl3IPAM) freeIPListAllocated(ipNetList []string) {
+	for _, ipNet := range ipNetList {
+		p.freeIfAllocated(ipNet)
+	}
 }
 
 func (p *vl3IPAM) freeIfAllocated(ipNet string) {
