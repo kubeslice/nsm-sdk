@@ -62,7 +62,7 @@ func (h *fanoutHandler) ServeDNS(ctx context.Context, rw dns.ResponseWriter, msg
 
 	log.FromContext(ctx).WithField("fanoutHandler", "ServeDNS").Debugf("Primary dns: %v", primaryDnsServerUrl)
 
-	if primaryDnsServerUrl != nil {
+	if primaryDnsServerUrl != nil && msg.Question[0].Qtype != dns.TypeAAAA {
 		var client = dns.Client{
 			Net:     primaryDnsServerUrl.Scheme,
 			Timeout: timeout,
@@ -94,7 +94,12 @@ func (h *fanoutHandler) ServeDNS(ctx context.Context, rw dns.ResponseWriter, msg
 		}
 	}
 
+	fanoutCount := 0
 	for i := 0; i < len(connectTO); i++ {
+		if primaryDnsServerUrl == &connectTO[i] {
+			continue
+		}
+		fanoutCount++
 		go func(u *url.URL, msg *dns.Msg) {
 			var client = dns.Client{
 				Net:     u.Scheme,
@@ -117,7 +122,7 @@ func (h *fanoutHandler) ServeDNS(ctx context.Context, rw dns.ResponseWriter, msg
 		}(&connectTO[i], msg.Copy())
 	}
 
-	var resp = h.waitResponse(ctx, responseCh)
+	var resp = h.waitResponse(ctx, responseCh, fanoutCount)
 
 	if resp == nil {
 		// TODO: The waitResponse() func needs to be improved to return the correct error code if none of the
@@ -136,8 +141,7 @@ func (h *fanoutHandler) ServeDNS(ctx context.Context, rw dns.ResponseWriter, msg
 	next.Handler(ctx).ServeDNS(ctx, rw, resp)
 }
 
-func (h *fanoutHandler) waitResponse(ctx context.Context, respCh <-chan *dns.Msg) *dns.Msg {
-	var respCount = cap(respCh)
+func (h *fanoutHandler) waitResponse(ctx context.Context, respCh <-chan *dns.Msg, respCount int) *dns.Msg {
 	for {
 		select {
 		case resp, ok := <-respCh:
